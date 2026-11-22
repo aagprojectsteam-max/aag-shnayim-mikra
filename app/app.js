@@ -132,7 +132,7 @@ function verseHTML(b, c, v, opts) {
   let mg = '';
   if (mark && S.aliyot && opts.aliyot !== false) mg += `<span class="lbl">${ALIYOT[mark.a - 1]}</span>`;
   if (v === 1 || opts.first) mg += `<span class="chn">פרק ${gem(c)}</span>`;
-  mg += `<span class="vn" data-r="${b}:${c}:${v}" title="סימניה כאן">${gem(v)}</span>`;
+  mg += `<span class="vn" data-r="${b}:${c}:${v}">${gem(v)}</span>`;
   h += `<span class="mg">${mg}</span>`;
   h += `<span class="m1">${fx(t)}</span> <span class="m2">${fx(t)}</span> <span class="tg">${fx(tg)}</span>`;
   if (S.rashi && rs && rs.length) h += ` <span class="rs">${fx(rs.join(' · '))}</span>`;
@@ -306,10 +306,11 @@ function topVerse() {
   return vn ? vn.dataset.r.split(':').map(Number) : null;
 }
 function updatePinUI() {
+  // one pin only: before pinning → "pin"; after → "go to pin" + "cancel pin"
+  $('pinBtn').hidden = !!S.bm;
   $('resumeBtn').hidden = $('unpinBtn').hidden = !S.bm;
-  $('pinBtn').textContent = S.bm ? '📌 נעץ כאן' : '📌 נעץ מיקום';
 }
-function pinHere() { const r = topVerse(); if (r) setBookmark(r); }
+function pinHere() { if (S.bm) return; const r = topVerse(); if (r) setBookmark(r); }
 function unpin() {
   S.bm = null; save();
   document.querySelectorAll('.v.bm').forEach(el => el.classList.remove('bm'));
@@ -404,13 +405,13 @@ function buildSet(el) {
     '<h3>פרשת השבוע והפטרה</h3>' +
     segRow('il', 'מקום', [[true, 'ארץ ישראל'], [false, 'חוץ לארץ']]) +
     segRow('nusach', 'נוסח ההפטרה', [['a', 'אשכנז'], ['s', 'ספרד']]) +
-    '<p class="hint">„📌 נעץ מיקום” נועץ את הפסוק שבראש המסך (או לחיצה על מספר פסוק). „📍 לנעיצה” חוזר אליו, „בטל נעיצה” מוחק.</p>';
+    '<p class="hint">„📌 נעץ מיקום” נועץ את הפסוק שבראש המסך. אחר כך: „📍 לך לנעיצה” או „בטל נעיצה”.</p>';
 }
 function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.7 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.8 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -440,7 +441,7 @@ function bind() {
   $('fsDown').onclick = () => setFs(-4);
 
   document.addEventListener('click', e => {
-    const t = e.target.closest('button, .vn, summary');
+    const t = e.target.closest('button, summary');
     if (!t) {
       if (!e.target.closest('.pop')) closePops();
       return;
@@ -463,7 +464,6 @@ function bind() {
     else if (d.fs) setFs(+d.fs);
     else if (d.ff !== undefined) { S.ff = +d.ff ? installedFonts()[+d.ff - 1] : ''; save(); buildSet($('setPop')); applyLook(); }
     else if (d.haf) { hafChoice = d.haf; render(); }
-    else if (d.r && t.classList.contains('vn')) setBookmark(d.r.split(':').map(Number));
     if (!t.closest('.pop') && !['pickBtn', 'setBtn', 'aboutBtn'].includes(t.id)) closePops();
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePops(); });
@@ -483,7 +483,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.7 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.8 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) {
   if (v.pinv !== DEF.pinv) { delete v.bm; v.pinv = DEF.pinv; } // 0.2.6 saved places automatically; start clean
   if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }

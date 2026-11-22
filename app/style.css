@@ -122,10 +122,9 @@ main { flex: 1; overflow: auto; outline: none; }
 .v { border-radius: 4px; }
 .v.bm { background: var(--mark); }
 .vn {
-  font: 700 .62em var(--font-ui); color: var(--ink-3); cursor: pointer;
+  font: 700 .62em var(--font-ui); color: var(--ink-3);
   vertical-align: .35em; padding: 0 2px; user-select: none;
 }
-.vn:hover { color: var(--accent); }
 .vn-static, .vn-static:hover { cursor: default; color: var(--ink-3); }
 .v.bm .vn { color: var(--accent); }
 .m1 { color: var(--c1); }
