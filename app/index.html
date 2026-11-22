@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שניים מקרא ואחד תרגום</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>שניים מקרא</h1>
+  <div class="seg" role="tablist">
+    <button type="button" id="modeParasha" class="seg-btn" role="tab">פרשה</button>
+    <button type="button" id="modeChapter" class="seg-btn" role="tab">פרק</button>
+  </div>
+  <button type="button" class="pick" id="pickBtn" aria-haspopup="true"><span id="pickLabel">…</span><span class="caret">▾</span></button>
+  <button type="button" class="btn" id="weekBtn" title="פרשת השבוע לפי התאריך">השבוע</button>
+  <button type="button" class="btn" id="resumeBtn" title="חזרה לסימניה">📌 המשך</button>
+  <span class="grow"></span>
+  <button type="button" class="icon-btn" id="fsDown" title="הקטנת גופן">א−</button>
+  <button type="button" class="icon-btn" id="fsUp" title="הגדלת גופן">א+</button>
+  <button type="button" class="icon-btn" id="setBtn" title="הגדרות" aria-haspopup="true">⚙</button>
+  <button type="button" class="icon-btn" id="aboutBtn" title="אודות">ⓘ</button>
+</header>
+
+<div class="pop" id="pickPop" hidden></div>
+<div class="pop pop-set" id="setPop" hidden></div>
+<div class="pop pop-about" id="aboutPop" hidden></div>
+
+<main id="main" tabindex="-1">
+  <div class="sub" id="sub"></div>
+  <article id="text" class="text"></article>
+  <nav class="pager" id="pager"></nav>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="calendar.js"></script>
+<script src="data/meta.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "com.aag.shnayim-mikra",
+  "name": "שניים מקרא ואחד תרגום",
+  "version": "0.1.0",
+  "description": "קריאת שניים מקרא ואחד תרגום ברצף: כל פסוק פעמיים בשני צבעים ואחריו אונקלוס, עם רש\"י לבחירה, פרשת השבוע לפי תאריך (כולל מחוברות), סימון עליות, ניקוד וטעמים, הפטרה וסימניה. עובד בלי אינטרנט.",
+  "author": "AAG",
+  "stability": "experimental",
+  "minAppVersion": "0.9.97",
+  "sdkVersion": "1.x",
+  "entrypoint": "index.html",
+  "permissions": [
+    "plugin.storage.read",
+    "plugin.storage.write",
+    "ui.feedback",
+    "events.subscribe:theme.changed"
+  ],
+  "network": { "enabled": false, "allowlist": [] },
+  "contributes": {
+    "toolTab": {
+      "title": "שניים מקרא",
+      "order": 310,
+      "allowOrderBeforeBuiltIns": false,
+      "defaultPinned": false,
+      "iconName": "book_open_24_filled"
+    }
+  }
+}
