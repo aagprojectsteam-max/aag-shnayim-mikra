@@ -70,6 +70,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .pop-set { inset-inline-start: auto; width: 460px; }
 .pop-set .row label { white-space: nowrap; }
+.pop-aliya { inset-inline-end: auto; width: 360px; }
 .pop-about { inset-inline-start: auto; width: 440px; line-height: 1.6; }
 .pop h3 { margin: 10px 0 6px; font-size: .95em; color: var(--ink-2); font-weight: 600; }
 .pop h3:first-child { margin-top: 0; }

@@ -218,6 +218,7 @@ async function render() {
   $('modeParasha').setAttribute('aria-selected', String(S.mode === 'p'));
   $('modeChapter').setAttribute('aria-selected', String(S.mode === 'c'));
   updatePinUI();
+  $('aliyaBtn').hidden = view.t !== 'p';
   const text = $('text');
   text.innerHTML = '<div class="loading">טוען…</div>';
   let sub = '', body = '', pager = '';
@@ -285,6 +286,10 @@ function weeklyView() {
   const r = SMCal.weekly(SMCal.fromDate(new Date()), S.il);
   return { t: 'p', ps: r.p, rd: r.rd };
 }
+function scrollToVerse(el) {
+  const m = $('main'), box = el.closest('.vp') || el;
+  m.scrollTop += box.getBoundingClientRect().top - m.getBoundingClientRect().top - 12;
+}
 function go(view, scrollTo) {
   S.view = view;
   S.mode = view.t;
@@ -294,7 +299,7 @@ function go(view, scrollTo) {
   render().then(() => {
     const el = scrollTo && document.getElementById(scrollTo);
     // put the start of the verse paragraph at the top of the reading area, fully visible (long verses must not be cut)
-    if (el) { const m = $('main'), box = el.closest('.vp') || el; m.scrollTop += box.getBoundingClientRect().top - m.getBoundingClientRect().top - 12; }
+    if (el) scrollToVerse(el);
     else $('main').scrollTop = 0;
   });
 }
@@ -334,7 +339,7 @@ function resume() {
 
 /* ---------- popovers ---------- */
 function closePops(except) {
-  ['pickPop', 'setPop', 'aboutPop'].forEach(id => { if (id !== except) $(id).hidden = true; });
+  ['pickPop', 'aliyaPop', 'setPop', 'aboutPop'].forEach(id => { if (id !== except) $(id).hidden = true; });
 }
 function togglePop(id, build) {
   const el = $(id);
@@ -342,6 +347,16 @@ function togglePop(id, build) {
   closePops(id);
   build(el);
   el.hidden = false;
+}
+// aliyah picker: jump to an aliyah inside the parasha that is open
+function buildAliya(el) {
+  let h = '';
+  for (const pi of S.view.ps) {
+    h += `<h3>פרשת ${esc(M.parashot[pi].he)}</h3><div class="grid">`;
+    M.parashot[pi].aliyot.forEach((a, i) => { h += `<button type="button" class="chip" data-ga="${a[0]}-${a[1]}-${a[2]}">${ALIYOT[i]}</button>`; });
+    h += '</div>';
+  }
+  el.innerHTML = h;
 }
 let pickBook = 0, pickChapter = 0;
 function buildPick(el) {
@@ -412,7 +427,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.9 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.10 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -432,6 +447,7 @@ function bind() {
     if (S.view && S.view.t === 'c') { pickBook = S.view.b; pickChapter = 0; }
     togglePop('pickPop', buildPick);
   };
+  $('aliyaBtn').onclick = () => togglePop('aliyaPop', buildAliya);
   $('weekBtn').onclick = () => go(weeklyView());
   $('resumeBtn').onclick = resume;
   $('pinBtn').onclick = pinHere;
@@ -465,7 +481,8 @@ function bind() {
     else if (d.fs) setFs(+d.fs);
     else if (d.ff !== undefined) { S.ff = +d.ff ? installedFonts()[+d.ff - 1] : ''; save(); buildSet($('setPop')); applyLook(); }
     else if (d.haf) { hafChoice = d.haf; render(); }
-    if (!t.closest('.pop') && !['pickBtn', 'setBtn', 'aboutBtn'].includes(t.id)) closePops();
+    else if (d.ga) { closePops(); const el = $('v-' + d.ga); if (el) scrollToVerse(el); }
+    if (!t.closest('.pop') && !['pickBtn', 'aliyaBtn', 'setBtn', 'aboutBtn'].includes(t.id)) closePops();
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePops(); });
 }
@@ -484,7 +501,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.9 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.10 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) {
   if (v.pinv !== DEF.pinv) { delete v.bm; v.pinv = DEF.pinv; } // 0.2.6 saved places automatically; start clean
   if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
