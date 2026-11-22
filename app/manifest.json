@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "com.aag.shnayim-mikra",
   "name": "שניים מקרא",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "שניים מקרא ואחד תרגום: כל פסוק פעמיים ואונקלוס בפסקה משלו, רש\"י, פרשת השבוע לפי תאריך, עליות, הפטרה וסימניה.",
   "author": "AAG",
   "stability": "experimental",

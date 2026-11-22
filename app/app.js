@@ -7,7 +7,22 @@ const ALIYOT = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי'
 const PAIRS = [[21, 22], [26, 27], [28, 29], [31, 32], [38, 39], [41, 42], [50, 51]];
 const COLORS = [['ink', 'שחור'], ['blue', 'כחול'], ['green', 'ירוק'], ['red', 'אדום'], ['brown', 'חום'], ['purple', 'סגול'], ['teal', 'טורקיז'], ['gray', 'אפור']];
 const SPECIAL_ORDER = ['chanukah1', 'chanukah2', 'shekalim', 'zachor', 'parah', 'hachodesh', 'shuva', 'roshchodesh', 'macharchodesh', 'hagadol', 'pinchas_bein'];
-const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, fs: 32, fsv: 2, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', wt: '1', bm: null };
+const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, fs: 32, fsv: 2, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', wt: '1', ff: '', bm: null };
+// font choices for the text; only fonts actually installed on this computer are offered
+const FONTS = ['Frank Ruehl CLM', 'Taamey Frank CLM', 'David CLM', 'Drugulin CLM', 'Keter YG', 'Shofar', 'Hadasim CLM',
+  'Ellinia CLM', 'Nachlieli CLM', 'Simple CLM', 'Yehuda CLM', 'Miriam CLM', 'SBL Hebrew', 'Ezra SIL', 'Noto Serif Hebrew',
+  'Frank Ruhl Libre', 'David', 'Narkisim', 'Times New Roman', 'Guttman Vilna', 'Guttman Frank', 'Noto Sans Hebrew',
+  'Stam Ashkenaz CLM', 'Stam Sefarad CLM'];
+let fontsOk = null;
+function installedFonts() {
+  if (fontsOk) return fontsOk;
+  const ctx = document.createElement('canvas').getContext('2d');
+  const txt = 'בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים abcmwi 0123';
+  const w = f => { ctx.font = '40px ' + f; return ctx.measureText(txt).width; };
+  const base = ['monospace', 'serif', 'sans-serif'].map(b => [b, w(b)]);
+  fontsOk = FONTS.filter(f => base.some(([b, bw]) => w(`"${f}", ${b}`) !== bw));
+  return fontsOk;
+}
 const S = Object.assign({}, DEF);
 let hafChoice = null; // 'reg' | 'spec' for the current view
 
@@ -257,6 +272,8 @@ async function render() {
 function applyLook() {
   const r = document.documentElement.style;
   r.setProperty('--fs', S.fs + 'px');
+  if (S.ff) r.setProperty('--font-text', `"${S.ff}", "Frank Ruehl CLM", "Noto Serif Hebrew", serif`);
+  else r.removeProperty('--font-text');
   r.setProperty('--wt', ['0', '.012em', '.024em', '.036em'][+S.wt] || '0');
   r.setProperty('--c1', `var(--k-${S.c1})`);
   r.setProperty('--c2', `var(--k-${S.c2})`);
@@ -361,6 +378,10 @@ function buildSet(el) {
     toggleRow('rashi', 'רש״י') + toggleRow('nikud', 'ניקוד') + toggleRow('teamim', 'טעמים') + toggleRow('aliyot', 'סימון עליות') +
     `<div class="row"><label>גודל גופן</label><div class="seg"><button type="button" class="seg-btn" data-fs="-4">−</button><button type="button" class="seg-btn" disabled>${S.fs}</button><button type="button" class="seg-btn" data-fs="4">+</button></div></div>` +
     segRow('wt', 'עובי הכתב', [['0', 'רגיל'], ['1', 'עבה'], ['2', 'עבה יותר'], ['3', 'הכי עבה']]) +
+    '<h3>גופן</h3><div class="fonts">' +
+    [['', 'ברירת מחדל']].concat(installedFonts().map(f => [f, f])).map(([f, n], i) =>
+      `<button type="button" class="font-btn" aria-selected="${S.ff === f}" data-ff="${i}" style="font-family:'${f || 'Frank Ruehl CLM'}', serif">` +
+      `<span class="fs-sample">בְּרֵאשִׁ֖ית בָּרָ֣א</span><span class="fs-name">${esc(n)}</span></button>`).join('') + '</div>' +
     '<h3>צבעים</h3>' + swRow('c1', 'מקרא — פעם ראשונה') + swRow('c2', 'מקרא — פעם שנייה') + swRow('ct', 'תרגום אונקלוס') +
     '<h3>פרשת השבוע והפטרה</h3>' +
     segRow('il', 'מקום', [[true, 'ארץ ישראל'], [false, 'חוץ לארץ']]) +
@@ -371,7 +392,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.3 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.4 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -420,6 +441,7 @@ function bind() {
       save(); buildSet($('setPop')); render();
     } else if (d.col) { const [k, v] = d.col.split(':'); S[k] = v; save(); buildSet($('setPop')); applyLook(); }
     else if (d.fs) setFs(+d.fs);
+    else if (d.ff !== undefined) { S.ff = +d.ff ? installedFonts()[+d.ff - 1] : ''; save(); buildSet($('setPop')); applyLook(); }
     else if (d.haf) { hafChoice = d.haf; render(); }
     else if (d.r && t.classList.contains('vn')) setBookmark(d.r.split(':').map(Number));
     if (!t.closest('.pop') && !['pickBtn', 'setBtn', 'aboutBtn'].includes(t.id)) closePops();
@@ -441,7 +463,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.3 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.4 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) { if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
 function loadLocal() {
   try {
@@ -459,6 +481,7 @@ function sanitize() {
   for (const k of ['c1', 'c2', 'ct']) if (!COLORS.some(c => c[0] === S[k])) S[k] = DEF[k];
   S.fs = Math.max(16, Math.min(80, Number(S.fs) || DEF.fs));
   if (!['0', '1', '2', '3'].includes(S.wt)) S.wt = DEF.wt;
+  if (typeof S.ff !== 'string' || (S.ff && !FONTS.includes(S.ff))) S.ff = DEF.ff;
   if (!validView(S.view)) S.view = weeklyView();
   if (S.view.rd) S.view = weeklyView(); // a dated view always means "this week"
   if (S.bm && !(Array.isArray(S.bm.r) && validView(S.bm.view))) S.bm = null;

@@ -81,6 +81,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .chip.week { box-shadow: inset 0 0 0 2px var(--accent); }
 .chip.num { min-width: 44px; text-align: center; font-family: var(--font-text); font-size: 1.05em; }
+.fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 4px 0 8px; }
+.font-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); cursor: pointer; }
+.font-btn .fs-sample { font-size: 1.45em; line-height: 1.5; }
+.font-btn .fs-name { font-family: system-ui, sans-serif; font-size: .78em; opacity: .75; }
+.font-btn[aria-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; }
 .row + .row { border-top: 1px solid var(--line); }
 .row label { flex: 1; }
