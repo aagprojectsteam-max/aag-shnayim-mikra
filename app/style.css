@@ -101,11 +101,16 @@ main { flex: 1; overflow: auto; outline: none; }
 .text {
   margin: 0; padding: 6px 18px 24px;
   font: var(--fs)/1.95 var(--font-text); text-align: justify;
+  -webkit-text-stroke: var(--wt, 0) currentColor;
 }
 .text p { margin: 0 0 .9em; }
-.text p.vp { position: relative; margin: 0 0 .75em; padding-bottom: .5em; padding-inline-start: 1.5em; border-bottom: 1px solid var(--line); }
+.text p.vp { position: relative; margin: 0 0 .75em; padding-bottom: .5em; padding-inline-start: 2.6em; border-bottom: 1px solid var(--line); }
 /* verse number sits in the side margin, outside the text column */
-.text p.vp .vn { position: absolute; inset-inline-start: 0; top: .55em; width: 2.2em; text-align: center; padding: 0; vertical-align: baseline; }
+.text p.vp .mg { position: absolute; inset-inline-start: 0; top: .5em; width: 2.3em; display: flex; flex-direction: column; align-items: center; gap: .15em; line-height: 1.2; }
+.text .mg, .text .lbl, .text .rs::before { -webkit-text-stroke: 0; }
+.text p.vp .mg .vn, .text p.vp .mg .chn, .text p.vp .mg .lbl { vertical-align: baseline; margin: 0; }
+.text p.vp .mg .lbl { font-size: .42em; padding: 1px 6px; }
+.text p.vp .mg .chn { font-size: .38em; white-space: nowrap; }
 .text p.vp.gap { margin-top: 1.3em; }
 .text p.vp:last-of-type { border-bottom: 0; }
 .v { border-radius: 4px; }

@@ -7,7 +7,7 @@ const ALIYOT = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי'
 const PAIRS = [[21, 22], [26, 27], [28, 29], [31, 32], [38, 39], [41, 42], [50, 51]];
 const COLORS = [['ink', 'שחור'], ['blue', 'כחול'], ['green', 'ירוק'], ['red', 'אדום'], ['brown', 'חום'], ['purple', 'סגול'], ['teal', 'טורקיז'], ['gray', 'אפור']];
 const SPECIAL_ORDER = ['chanukah1', 'chanukah2', 'shekalim', 'zachor', 'parah', 'hachodesh', 'shuva', 'roshchodesh', 'macharchodesh', 'hagadol', 'pinchas_bein'];
-const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, fs: 32, fsv: 2, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', bm: null };
+const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, fs: 32, fsv: 2, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', wt: '1', bm: null };
 const S = Object.assign({}, DEF);
 let hafChoice = null; // 'reg' | 'spec' for the current view
 
@@ -113,9 +113,12 @@ function verseHTML(b, c, v, opts) {
   let h = `<span class="v${bm ? ' bm' : ''}" id="v-${b}-${c}-${v}">`;
   const mark = MARK[`${b}:${c}:${v}`];
   if (mark && mark.p !== undefined && opts.parLabel) h += `<span class="lbl par">פרשת ${esc(M.parashot[mark.p].he)}</span>`;
-  if (mark && S.aliyot && opts.aliyot !== false) h += `<span class="lbl">${ALIYOT[mark.a - 1]}</span>`;
-  if (v === 1 || opts.first) h += `<span class="chn">פרק ${gem(c)}</span>`;
-  h += `<span class="vn" data-r="${b}:${c}:${v}" title="סימניה כאן">${gem(v)}</span>`;
+  // side margin: aliyah, chapter, verse number (outside the text column)
+  let mg = '';
+  if (mark && S.aliyot && opts.aliyot !== false) mg += `<span class="lbl">${ALIYOT[mark.a - 1]}</span>`;
+  if (v === 1 || opts.first) mg += `<span class="chn">פרק ${gem(c)}</span>`;
+  mg += `<span class="vn" data-r="${b}:${c}:${v}" title="סימניה כאן">${gem(v)}</span>`;
+  h += `<span class="mg">${mg}</span>`;
   h += `<span class="m1">${fx(t)}</span> <span class="m2">${fx(t)}</span> <span class="tg">${fx(tg)}</span>`;
   if (S.rashi && rs && rs.length) h += ` <span class="rs">${fx(rs.join(' · '))}</span>`;
   return { h: h + '</span> ', brk };
@@ -254,6 +257,7 @@ async function render() {
 function applyLook() {
   const r = document.documentElement.style;
   r.setProperty('--fs', S.fs + 'px');
+  r.setProperty('--wt', ['0', '.012em', '.024em', '.036em'][+S.wt] || '0');
   r.setProperty('--c1', `var(--k-${S.c1})`);
   r.setProperty('--c2', `var(--k-${S.c2})`);
   r.setProperty('--ct', `var(--k-${S.ct})`);
@@ -356,6 +360,7 @@ function buildSet(el) {
   el.innerHTML = '<h3>תצוגה</h3>' +
     toggleRow('rashi', 'רש״י') + toggleRow('nikud', 'ניקוד') + toggleRow('teamim', 'טעמים') + toggleRow('aliyot', 'סימון עליות') +
     `<div class="row"><label>גודל גופן</label><div class="seg"><button type="button" class="seg-btn" data-fs="-4">−</button><button type="button" class="seg-btn" disabled>${S.fs}</button><button type="button" class="seg-btn" data-fs="4">+</button></div></div>` +
+    segRow('wt', 'עובי הכתב', [['0', 'רגיל'], ['1', 'עבה'], ['2', 'עבה יותר'], ['3', 'הכי עבה']]) +
     '<h3>צבעים</h3>' + swRow('c1', 'מקרא — פעם ראשונה') + swRow('c2', 'מקרא — פעם שנייה') + swRow('ct', 'תרגום אונקלוס') +
     '<h3>פרשת השבוע והפטרה</h3>' +
     segRow('il', 'מקום', [[true, 'ארץ ישראל'], [false, 'חוץ לארץ']]) +
@@ -366,7 +371,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.2 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.3 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -436,7 +441,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.2 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.3 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) { if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
 function loadLocal() {
   try {
@@ -453,6 +458,7 @@ function validView(v) {
 function sanitize() {
   for (const k of ['c1', 'c2', 'ct']) if (!COLORS.some(c => c[0] === S[k])) S[k] = DEF[k];
   S.fs = Math.max(16, Math.min(80, Number(S.fs) || DEF.fs));
+  if (!['0', '1', '2', '3'].includes(S.wt)) S.wt = DEF.wt;
   if (!validView(S.view)) S.view = weeklyView();
   if (S.view.rd) S.view = weeklyView(); // a dated view always means "this week"
   if (S.bm && !(Array.isArray(S.bm.r) && validView(S.bm.view))) S.bm = null;
