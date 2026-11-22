@@ -297,8 +297,26 @@ function go(view, scrollTo) {
     else $('main').scrollTop = 0;
   });
 }
+// a saved place must point at a fixed parasha/chapter, never at "this week" (which changes every Shabbat)
+function fixedView(v) { return v && v.t === 'p' ? { t: 'p', ps: v.ps.slice() } : v; }
+// reading place is kept automatically: the first verse at the top of the screen, a moment after scrolling stops
+let trackTimer = 0;
+function trackPlace() {
+  clearTimeout(trackTimer);
+  trackTimer = setTimeout(() => {
+    const m = $('main');
+    if (m.scrollTop < 40) return; // still at the very top: nothing read yet, keep the old place
+    const top = m.getBoundingClientRect().top;
+    const vn = [...document.querySelectorAll('.text .vn')].find(x => x.closest('.vp').getBoundingClientRect().bottom > top + 10);
+    if (!vn) return;
+    const r = vn.dataset.r.split(':').map(Number);
+    S.bm = { r, view: fixedView(S.view) };
+    $('resumeBtn').disabled = false;
+    save();
+  }, 700);
+}
 function setBookmark(r) {
-  S.bm = { r, view: S.view };
+  S.bm = { r, view: fixedView(S.view) };
   save();
   document.querySelectorAll('.v.bm').forEach(el => el.classList.remove('bm'));
   const el = document.getElementById(`v-${r.join('-')}`);
@@ -386,13 +404,13 @@ function buildSet(el) {
     '<h3>פרשת השבוע והפטרה</h3>' +
     segRow('il', 'מקום', [[true, 'ארץ ישראל'], [false, 'חוץ לארץ']]) +
     segRow('nusach', 'נוסח ההפטרה', [['a', 'אשכנז'], ['s', 'ספרד']]) +
-    '<p class="hint">לחיצה על מספר פסוק שומרת שם סימניה. „📌 המשך” חוזר אליה.</p>';
+    '<p class="hint">מקום הקריאה נשמר אוטומטית, ו„📌 המשך” חוזר אליו. אפשר גם ללחוץ על מספר פסוק כדי לסמן מקום.</p>';
 }
 function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.5 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.6 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -414,6 +432,7 @@ function bind() {
   };
   $('weekBtn').onclick = () => go(weeklyView());
   $('resumeBtn').onclick = resume;
+  $('main').addEventListener('scroll', trackPlace, { passive: true });
   $('setBtn').onclick = () => togglePop('setPop', buildSet);
   $('aboutBtn').onclick = () => togglePop('aboutPop', buildAbout);
   $('fsUp').onclick = () => setFs(4);
@@ -463,7 +482,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.5 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.6 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) { if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
 function loadLocal() {
   try {
@@ -485,6 +504,7 @@ function sanitize() {
   if (!validView(S.view)) S.view = weeklyView();
   if (S.view.rd) S.view = weeklyView(); // a dated view always means "this week"
   if (S.bm && !(Array.isArray(S.bm.r) && validView(S.bm.view))) S.bm = null;
+  if (S.bm) S.bm.view = fixedView(S.bm.view);
   S.mode = S.view.t;
 }
 function luminance(c) {
