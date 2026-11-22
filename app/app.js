@@ -7,7 +7,7 @@ const ALIYOT = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי'
 const PAIRS = [[21, 22], [26, 27], [28, 29], [31, 32], [38, 39], [41, 42], [50, 51]];
 const COLORS = [['ink', 'שחור'], ['blue', 'כחול'], ['green', 'ירוק'], ['red', 'אדום'], ['brown', 'חום'], ['purple', 'סגול'], ['teal', 'טורקיז'], ['gray', 'אפור']];
 const SPECIAL_ORDER = ['chanukah1', 'chanukah2', 'shekalim', 'zachor', 'parah', 'hachodesh', 'shuva', 'roshchodesh', 'macharchodesh', 'hagadol', 'pinchas_bein'];
-const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, fs: 20, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', bm: null };
+const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, fs: 32, fsv: 2, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', bm: null };
 const S = Object.assign({}, DEF);
 let hafChoice = null; // 'reg' | 'spec' for the current view
 
@@ -121,14 +121,14 @@ function verseHTML(b, c, v, opts) {
   return { h: h + '</span> ', brk };
 }
 function flow(refs, opts) {
-  let out = '<p>', first = true;
+  // one paragraph per verse (its two readings + targum); a {פ}/{ס} break adds extra space before the next verse
+  let out = '', first = true, gap = false;
   for (const [b, c, v] of refs) {
     const r = verseHTML(b, c, v, Object.assign({ first }, opts));
-    out += r.h;
-    if (r.brk) out += '</p><p>';
-    first = false;
+    out += `<p class="vp${gap ? ' gap' : ''}">${r.h}</p>`;
+    gap = r.brk; first = false;
   }
-  return (out + '</p>').replace(/<p><\/p>/g, '');
+  return out;
 }
 function endBlock(lastPi) {
   const [b, c, v] = pEnd(lastPi);
@@ -355,7 +355,7 @@ function segRow(key, label, opts) {
 function buildSet(el) {
   el.innerHTML = '<h3>תצוגה</h3>' +
     toggleRow('rashi', 'רש״י') + toggleRow('nikud', 'ניקוד') + toggleRow('teamim', 'טעמים') + toggleRow('aliyot', 'סימון עליות') +
-    `<div class="row"><label>גודל גופן</label><div class="seg"><button type="button" class="seg-btn" data-fs="-2">−</button><button type="button" class="seg-btn" disabled>${S.fs}</button><button type="button" class="seg-btn" data-fs="2">+</button></div></div>` +
+    `<div class="row"><label>גודל גופן</label><div class="seg"><button type="button" class="seg-btn" data-fs="-4">−</button><button type="button" class="seg-btn" disabled>${S.fs}</button><button type="button" class="seg-btn" data-fs="4">+</button></div></div>` +
     '<h3>צבעים</h3>' + swRow('c1', 'מקרא — פעם ראשונה') + swRow('c2', 'מקרא — פעם שנייה') + swRow('ct', 'תרגום אונקלוס') +
     '<h3>פרשת השבוע והפטרה</h3>' +
     segRow('il', 'מקום', [[true, 'ארץ ישראל'], [false, 'חוץ לארץ']]) +
@@ -364,9 +364,9 @@ function buildSet(el) {
 }
 function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
-    '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס, ברצף אחד. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
+    '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.1.0 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.0 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -390,8 +390,8 @@ function bind() {
   $('resumeBtn').onclick = resume;
   $('setBtn').onclick = () => togglePop('setPop', buildSet);
   $('aboutBtn').onclick = () => togglePop('aboutPop', buildAbout);
-  $('fsUp').onclick = () => setFs(2);
-  $('fsDown').onclick = () => setFs(-2);
+  $('fsUp').onclick = () => setFs(4);
+  $('fsDown').onclick = () => setFs(-4);
 
   document.addEventListener('click', e => {
     const t = e.target.closest('button, .vn, summary');
@@ -422,7 +422,7 @@ function bind() {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePops(); });
 }
 function setFs(d) {
-  S.fs = Math.max(14, Math.min(44, S.fs + d));
+  S.fs = Math.max(16, Math.min(80, S.fs + d));
   save(); applyLook();
   if (!$('setPop').hidden) buildSet($('setPop'));
 }
@@ -436,10 +436,12 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
+// stored state from before 0.2.0 (no fsv): drop its small font size so the new larger default applies
+function migrate(v) { if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
 function loadLocal() {
   try {
     const v = JSON.parse(localStorage.getItem('aag-shnayim-mikra') || 'null');
-    if (v && typeof v === 'object') Object.assign(S, v);
+    if (v && typeof v === 'object') Object.assign(S, migrate(v));
   } catch (e) { /* ignore */ }
 }
 function validView(v) {
@@ -450,7 +452,7 @@ function validView(v) {
 }
 function sanitize() {
   for (const k of ['c1', 'c2', 'ct']) if (!COLORS.some(c => c[0] === S[k])) S[k] = DEF[k];
-  S.fs = Math.max(14, Math.min(44, Number(S.fs) || DEF.fs));
+  S.fs = Math.max(16, Math.min(80, Number(S.fs) || DEF.fs));
   if (!validView(S.view)) S.view = weeklyView();
   if (S.view.rd) S.view = weeklyView(); // a dated view always means "this week"
   if (S.bm && !(Array.isArray(S.bm.r) && validView(S.bm.view))) S.bm = null;
@@ -500,7 +502,7 @@ if (HAS_OTZ) {
     try {
       const res = await Otzaria.call('storage.get', { key: KEY });
       const v = res && (res.data !== undefined ? res.data : res.value);
-      if (v && typeof v === 'object') { Object.assign(S, v); sanitize(); render(); }
+      if (v && typeof v === 'object') { Object.assign(S, migrate(v)); sanitize(); render(); }
     } catch (e) { /* keep local settings */ }
   });
   Otzaria.on('theme.changed', applyOtzariaTheme);
