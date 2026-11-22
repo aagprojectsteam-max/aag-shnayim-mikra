@@ -293,7 +293,8 @@ function go(view, scrollTo) {
   closePops();
   render().then(() => {
     const el = scrollTo && document.getElementById(scrollTo);
-    if (el) el.scrollIntoView({ block: 'center' });
+    // put the start of the verse paragraph at the top of the reading area, fully visible (long verses must not be cut)
+    if (el) { const m = $('main'), box = el.closest('.vp') || el; m.scrollTop += box.getBoundingClientRect().top - m.getBoundingClientRect().top - 12; }
     else $('main').scrollTop = 0;
   });
 }
@@ -411,7 +412,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.8 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.9 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -483,7 +484,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.8 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.9 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) {
   if (v.pinv !== DEF.pinv) { delete v.bm; v.pinv = DEF.pinv; } // 0.2.6 saved places automatically; start clean
   if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
