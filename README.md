@@ -24,7 +24,7 @@ the verse twice (two colors), then Targum Onkelos, with optional Rashi. Fully of
 python3 tools/build_data.py
 python3 tools/package_plugin.py
 node tools/caltest.js <other calendar.js> app/calendar.js
-xdg-open dist/com.aag.shnayim-mikra-0.2.4.otzplugin   # then confirm in Otzaria
+xdg-open dist/com.aag.shnayim-mikra-0.2.5.otzplugin   # then confirm in Otzaria
 ```
 Standalone test: serve `app/` with any static server and open index.html in a browser.
 
