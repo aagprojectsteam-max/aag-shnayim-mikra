@@ -28,6 +28,7 @@ function installedFonts() {
 const FONT_LACKS = { 'David CLM': 't', 'Miriam CLM': 't', 'Frank Ruhl Libre': 't', 'Ellinia CLM': 'nt', 'Yehuda CLM': 'nt' };
 const fontFits = f => { const l = FONT_LACKS[f] || ''; return !(S.teamim && l.includes('t')) && !(S.nikud && l.includes('n')); };
 const usableFonts = () => installedFonts().filter(fontFits);
+const RX_NO_QQ = /^(Guttman|Ellinia CLM$|Yehuda CLM$)/i;
 const S = Object.assign({}, DEF);
 let hafChoice = null; // 'reg' | 'spec' for the current view
 
@@ -118,6 +119,9 @@ function fx(s) {
   if (!s) return '';
   if (!S.teamim) s = s.replace(RX_TEAMIM, '');
   if (!S.nikud) s = s.replace(RX_NIKUD, '');
+  // fonts with no qamats qatan / holam haser (measured: Guttman*, Ellinia, Yehuda): WebKit would draw
+  // the whole letter in a fallback font, so those letters look different. Show the plain sign instead.
+  else if (S.ff && RX_NO_QQ.test(S.ff) && fontFits(S.ff)) s = s.replace(/ׇ/g, 'ָ').replace(/ֺ/g, 'ֹ').replace(/͏/g, '');
   return s;
 }
 function splitMikra(s) {
@@ -217,9 +221,13 @@ async function fillHaft() {
   box.dataset.done = '1';
 }
 
-async function render() {
+let shown = null;  // the text now on screen: a book (chapter mode) or a parasha list
+const sameText = (a, b) => !!(a && b && a.t === b.t && (a.t === 'c' ? a.b === b.b : a.ps.join() === b.ps.join()));
+async function render(fromGo) {
   applyLook();
   const view = S.view;
+  // re-render of the same text (settings toggle, Otzaria boot): keep the reader's place
+  const keep = !fromGo && sameText(shown, view) ? topVerse() : null;
   $('modeParasha').setAttribute('aria-selected', String(S.mode === 'p'));
   $('modeChapter').setAttribute('aria-selected', String(S.mode === 'c'));
   updatePinUI();
@@ -249,17 +257,15 @@ async function render() {
       pager = `<button type="button" class="btn" data-go="p:${prev}">→ ${esc(M.parashot[prev].he)}</button>` +
         `<button type="button" class="btn" data-go="p:${next}">${esc(M.parashot[next].he)} ←</button>`;
     } else {
+      // chapter mode = the whole book as one continuous text; the chosen chapter/verse is only where it opens
       const { b, c } = view;
       await loadBook(b);
-      const label = `${M.books[b].he} ${gem(c)}`;
-      $('pickLabel').textContent = label;
-      const pis = new Set([parashaOf(b, c, 1), parashaOf(b, c, nVerses(b, c))].filter(x => x >= 0));
-      sub = `<h2>${esc(M.books[b].he)} פרק ${gem(c)}</h2><div class="meta">${[...pis].map(pi => 'פרשת ' + esc(M.parashot[pi].he)).join(' · ')}</div>`;
-      body = flow(range(b, c, 1, c, nVerses(b, c)), { parLabel: true });
-      const pr = c > 1 ? [b, c - 1] : (b > 0 ? [b - 1, M.books[b - 1].verses.length] : null);
-      const nx = c < M.books[b].verses.length ? [b, c + 1] : (b < 4 ? [b + 1, 1] : null);
-      pager = (pr ? `<button type="button" class="btn" data-go="c:${pr[0]}:${pr[1]}">→ ${esc(M.books[pr[0]].he)} ${gem(pr[1])}</button>` : '<span></span>') +
-        (nx ? `<button type="button" class="btn" data-go="c:${nx[0]}:${nx[1]}">${esc(M.books[nx[0]].he)} ${gem(nx[1])} ←</button>` : '');
+      $('pickLabel').textContent = `${M.books[b].he} ${gem(c)}`;
+      const nc = M.books[b].verses.length;
+      sub = `<h2>ספר ${esc(M.books[b].he)}</h2><div class="meta">${gem(nc)} פרקים · הקריאה ממשיכה ברצף; בחירת פרק או פסוק רק מעבירה למקומו</div>`;
+      body = flow(range(b, 1, 1, nc, nVerses(b, nc)), { parLabel: true });
+      pager = (b > 0 ? `<button type="button" class="btn" data-go="c:${b - 1}:1">→ ספר ${esc(M.books[b - 1].he)}</button>` : '<span></span>') +
+        (b < 4 ? `<button type="button" class="btn" data-go="c:${b + 1}:1">ממשיכים לספר ${esc(M.books[b + 1].he)} ←</button>` : '');
     }
   } catch (e) {
     text.innerHTML = '<div class="loading">לא הצלחתי לטעון את הטקסט.</div>';
@@ -268,6 +274,13 @@ async function render() {
   $('sub').innerHTML = sub;
   text.innerHTML = body;
   $('pager').innerHTML = pager;
+  shown = { ...view };
+  vpCache = null;
+  if (!fromGo) {
+    const el = keep && document.getElementById(`v-${keep.join('-')}`);
+    if (el) scrollToVerse(el);
+    else if (view.t === 'c') scrollToChapter(view);
+  }
   const det = $('haft');
   if (det) {
     det.addEventListener('toggle', () => { if (det.open) fillHaft(); });
@@ -298,30 +311,32 @@ function weeklyView() {
 // A verse taller than the screen is paged through first, so no text is skipped.
 // Returns false (browser default) outside the verse list, e.g. past the last verse.
 let lastKey = '';  // shown in the ℹ popup: tells whether paging keys reach the page at all
+// breathing room above a verse brought to the top (PageDown/PageUp, jumps): about two thirds of a text line
+const topGap = () => Math.max(24, Math.round(S.fs * 1.3));
 function pageVerse(dir) {
-  const m = $('main'), box = m.getBoundingClientRect();
+  const m = $('main'), box = m.getBoundingClientRect(), g = topGap();
   const ps = [...document.querySelectorAll('.text p.vp')];
   if (!ps.length) return false;
   const tops = ps.map(p => p.getBoundingClientRect().top - box.top);
   if (dir > 0) {
-    const i = tops.findIndex(t => t > 14);
+    const i = tops.findIndex(t => t > g + 2);
     if (i < 0) return false;
-    const step = tops[i] - 12;
+    const step = tops[i] - g;
     const lh = parseFloat(getComputedStyle(ps[i]).lineHeight) || 60;
     m.scrollTop += step > m.clientHeight ? m.clientHeight - lh : step;
     return true;
   }
   let i = -1;
-  tops.forEach((t, k) => { if (t < 10) i = k; });
+  tops.forEach((t, k) => { if (t < g - 2) i = k; });
   if (i < 0) return false;
-  const back = tops[i] - 12;  // negative: distance up to that verse's start
+  const back = tops[i] - g;  // negative: distance up to that verse's start
   const lh = parseFloat(getComputedStyle(ps[i]).lineHeight) || 60;
   m.scrollTop += -back > m.clientHeight ? -(m.clientHeight - lh) : back;
   return true;
 }
 function scrollToVerse(el) {
   const m = $('main'), box = el.closest('.vp') || el;
-  m.scrollTop += box.getBoundingClientRect().top - m.getBoundingClientRect().top - 12;
+  m.scrollTop += box.getBoundingClientRect().top - m.getBoundingClientRect().top - topGap();
 }
 function go(view, scrollTo) {
   S.view = view;
@@ -329,28 +344,55 @@ function go(view, scrollTo) {
   hafChoice = null;
   save();
   closePops();
-  render().then(() => {
+  render(true).then(() => {
     const el = scrollTo && document.getElementById(scrollTo);
     // put the start of the verse paragraph at the top of the reading area, fully visible (long verses must not be cut)
     if (el) scrollToVerse(el);
+    else if (view.t === 'c') scrollToChapter(view);
     else $('main').scrollTop = 0;
   });
+}
+function scrollToChapter(view) {
+  const el = view.c > 1 && document.getElementById(`v-${view.b}-${view.c}-1`);
+  if (el) scrollToVerse(el); else $('main').scrollTop = 0;
+}
+// chapter mode shows the whole book: follow the chapter at the top of the screen (header label + saved place)
+let vpCache = null, trackQueued = false;
+function trackChapter() {
+  trackQueued = false;
+  const v = S.view;
+  if (!v || v.t !== 'c' || !shown || shown.t !== 'c') return;
+  const ps = vpCache || (vpCache = [...document.querySelectorAll('.text p.vp')]);
+  if (!ps.length) return;
+  const top = $('main').getBoundingClientRect().top + topGap();
+  let lo = 0, hi = ps.length - 1;  // first paragraph whose bottom is below the top edge (paragraphs are in order)
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (ps[mid].getBoundingClientRect().bottom > top) hi = mid; else lo = mid + 1; }
+  const vn = ps[lo].querySelector('.vn[data-r]');
+  if (!vn) return;
+  const [b, c] = vn.dataset.r.split(':').map(Number);
+  if (b !== v.b || !c || c === v.c) return;
+  v.c = c;
+  $('pickLabel').textContent = `${M.books[b].he} ${gem(c)}`;
+  save();
 }
 // a saved place must point at a fixed parasha/chapter, never at "this week" (which changes every Shabbat)
 function fixedView(v) { return v && v.t === 'p' ? { t: 'p', ps: v.ps.slice() } : v; }
 // the verse at the top of the screen (what the reader is looking at now)
 function topVerse() {
-  const top = $('main').getBoundingClientRect().top;
   // only real verse paragraphs (the end block / haftarah have static numbers without a reference)
   const vns = [...document.querySelectorAll('.text p.vp .vn[data-r]')];
-  // a verse counts only if at least half a line of its TEXT is on screen (not just its bottom padding / separator line)
-  const seen = p => {
-    const cs = getComputedStyle(p);
-    const textBottom = p.getBoundingClientRect().bottom - parseFloat(cs.paddingBottom) - parseFloat(cs.borderBottomWidth);
-    return textBottom > top + parseFloat(cs.lineHeight) / 2;
-  };
-  const vn = vns.find(x => seen(x.closest('.vp'))) || vns[vns.length - 1];
-  return vn ? vn.dataset.r.split(':').map(Number) : null;
+  if (!vns.length) return null;
+  const cs = getComputedStyle(vns[0].closest('.vp'));  // all verse paragraphs share one style
+  const pad = parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth);
+  // a verse counts only if its TEXT reaches half a line below the top gap (the gap above a verse
+  // brought up by PageDown may still show the end of the previous verse — that one is already read)
+  const edge = $('main').getBoundingClientRect().top + Math.min(topGap(), parseFloat(cs.lineHeight)) + 2;
+  let lo = 0, hi = vns.length - 1;  // paragraphs are in order: binary search (a whole book has ~1500)
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (vns[mid].closest('.vp').getBoundingClientRect().bottom - pad > edge) hi = mid; else lo = mid + 1;
+  }
+  return vns[lo].dataset.r.split(':').map(Number);
 }
 function updatePinUI() {
   // one pin only: before pinning → "pin"; after → "go to pin" + "cancel pin"
@@ -469,7 +511,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.15 · עובד בלי אינטרנט</p>` +
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.16 · עובד בלי אינטרנט</p>` +
     `<p class="hint">מקש אחרון שהתקבל: ${esc(lastKey || '—')}</p>`;
 }
 
@@ -477,15 +519,17 @@ function buildAbout(el) {
 function bind() {
   $('modeParasha').onclick = () => {
     if (S.mode === 'p') return;
-    const v = S.view;
-    let pi = v && v.t === 'c' ? parashaOf(v.b, v.c, 1) : -1;
-    go(pi >= 0 ? { t: 'p', ps: [pi] } : weeklyView());
+    go(weeklyView());  // switching mode always opens this week's parasha
   };
   $('modeChapter').onclick = () => {
     if (S.mode === 'c') return;
-    const s = S.view && S.view.t === 'p' ? pStart(S.view.ps[0]) : [0, 1, 1];
-    go({ t: 'c', b: s[0], c: s[1] });
+    // the book of this week's parasha, opened exactly at its first verse (a parasha often starts mid-chapter)
+    const s = pStart(weeklyView().ps[0]);
+    go({ t: 'c', b: s[0], c: s[1] }, `v-${s.join('-')}`);
   };
+  $('main').addEventListener('scroll', () => {
+    if (!trackQueued) { trackQueued = true; requestAnimationFrame(trackChapter); }
+  }, { passive: true });
   $('pickBtn').onclick = () => {
     if (S.view && S.view.t === 'c') { pickBook = S.view.b; pickChapter = 0; }
     togglePop('pickPop', buildPick);
@@ -555,7 +599,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.15 (no fsv): drop its small font size so the new larger default applies
+// stored state from older versions (no fsv): drop its small font size so the new larger default applies
 function migrate(v) {
   if (v.pinv !== DEF.pinv) { delete v.bm; v.pinv = DEF.pinv; } // 0.2.6 saved places automatically; start clean
   if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
