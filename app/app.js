@@ -7,7 +7,7 @@ const ALIYOT = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי'
 const PAIRS = [[21, 22], [26, 27], [28, 29], [31, 32], [38, 39], [41, 42], [50, 51]];
 const COLORS = [['ink', 'שחור'], ['blue', 'כחול'], ['green', 'ירוק'], ['red', 'אדום'], ['brown', 'חום'], ['purple', 'סגול'], ['teal', 'טורקיז'], ['gray', 'אפור']];
 const SPECIAL_ORDER = ['chanukah1', 'chanukah2', 'shekalim', 'zachor', 'parah', 'hachodesh', 'shuva', 'roshchodesh', 'macharchodesh', 'hagadol', 'pinchas_bein'];
-const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, fs: 32, fsv: 2, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', wt: '1', ff: '', bm: null, pinv: 1 };
+const DEF = { mode: 'p', view: null, rashi: false, nikud: true, teamim: true, aliyot: true, prog: true, fs: 32, fsv: 2, c1: 'ink', c2: 'blue', ct: 'brown', il: true, nusach: 'a', wt: '1', ff: '', bm: null, pinv: 1 };
 // font choices for the text; only fonts actually installed on this computer are offered
 const FONTS = ['Frank Ruehl CLM', 'Taamey Frank CLM', 'David CLM', 'Drugulin CLM', 'Keter YG', 'Shofar', 'Hadasim CLM',
   'Ellinia CLM', 'Nachlieli CLM', 'Simple CLM', 'Yehuda CLM', 'Miriam CLM', 'SBL Hebrew', 'Ezra SIL', 'Noto Serif Hebrew',
@@ -234,6 +234,7 @@ async function render(fromGo) {
   $('aliyaBtn').hidden = view.t !== 'p';
   const text = $('text');
   text.innerHTML = '<div class="loading">טוען…</div>';
+  vnCache = null;
   let sub = '', body = '', pager = '';
   try {
     if (view.t === 'p') {
@@ -276,6 +277,7 @@ async function render(fromGo) {
   $('pager').innerHTML = pager;
   shown = { ...view };
   vpCache = null;
+  buildProgress();
   if (!fromGo) {
     const el = keep && document.getElementById(`v-${keep.join('-')}`);
     if (el) scrollToVerse(el);
@@ -378,10 +380,17 @@ function trackChapter() {
 // a saved place must point at a fixed parasha/chapter, never at "this week" (which changes every Shabbat)
 function fixedView(v) { return v && v.t === 'p' ? { t: 'p', ps: v.ps.slice() } : v; }
 // the verse at the top of the screen (what the reader is looking at now)
+// only real verse paragraphs (the end block / haftarah have static numbers without a reference)
+let vnCache = null;
+const verseList = () => vnCache || (vnCache = [...document.querySelectorAll('.text p.vp .vn[data-r]')]);
 function topVerse() {
-  // only real verse paragraphs (the end block / haftarah have static numbers without a reference)
-  const vns = [...document.querySelectorAll('.text p.vp .vn[data-r]')];
-  if (!vns.length) return null;
+  const i = topIndex();
+  return i < 0 ? null : verseList()[i].dataset.r.split(':').map(Number);
+}
+// index of the verse at the top of the screen, and whether even the last verse is already above it
+function topIndex(info) {
+  const vns = verseList();
+  if (!vns.length) return -1;
   const cs = getComputedStyle(vns[0].closest('.vp'));  // all verse paragraphs share one style
   const pad = parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth);
   // a verse counts only if its TEXT reaches half a line below the top gap (the gap above a verse
@@ -392,7 +401,43 @@ function topVerse() {
     const mid = (lo + hi) >> 1;
     if (vns[mid].closest('.vp').getBoundingClientRect().bottom - pad > edge) hi = mid; else lo = mid + 1;
   }
-  return vns[lo].dataset.r.split(':').map(Number);
+  if (info) info.past = vns[lo].closest('.vp').getBoundingClientRect().bottom - pad <= edge;
+  return lo;
+}
+
+/* ---------- reading progress bar ---------- */
+let progMarks = null;  // [{i, label}] aliyah starts (parasha view) or parasha starts (chapter view)
+function buildProgress() {
+  vnCache = null;
+  const vns = verseList(), n = vns.length;
+  progMarks = [];
+  vns.forEach((vn, i) => {
+    const mk = MARK[vn.dataset.r];
+    if (!mk) return;
+    if (shown && shown.t === 'c') { if (mk.p !== undefined) progMarks.push({ i, label: 'פרשת ' + M.parashot[mk.p].he }); }
+    else if (mk.a) progMarks.push({ i, label: ALIYOT[mk.a - 1] });
+  });
+  $('progTicks').innerHTML = progMarks.filter(x => x.i > 0)
+    .map(x => `<i style="inset-inline-start:${(x.i / n * 100).toFixed(3)}%" title="${esc(x.label)}"></i>`).join('');
+  updateProgress();
+}
+function updateProgress() {
+  const bar = $('prog'), vns = verseList(), n = vns.length;
+  bar.hidden = !S.prog || !n;
+  if (bar.hidden) return;
+  const m = $('main'), info = {};
+  let read = topIndex(info);
+  // the last verse already scrolled past, or nothing left to scroll: everything was read
+  if (info.past || m.scrollTop + m.clientHeight >= m.scrollHeight - 4) read = n;
+  const cur = Math.min(read, n - 1);
+  let sec = '';
+  for (const x of progMarks || []) { if (x.i <= cur) sec = x.label; else break; }
+  const pct = read >= n ? 100 : Math.floor(read / n * 100);
+  bar.classList.toggle('done', read >= n);
+  $('progFill').style.width = (read / n * 100).toFixed(3) + '%';
+  $('progNow').innerHTML = (read >= n ? `סיימת את כל <b>${n}</b> הפסוקים` : `קראת <b>${read}</b> מתוך ${n} פסוקים`) +
+    (sec ? ` · <span class="sec">${esc(sec)}</span>` : '');
+  $('progLeft').innerHTML = read >= n ? '<b>100%</b>' : `נותרו <b>${n - read}</b> · ${pct}%`;
 }
 function updatePinUI() {
   // one pin only: before pinning → "pin"; after → "go to pin" + "cancel pin"
@@ -493,7 +538,7 @@ function segRow(key, label, opts) {
 }
 function buildSet(el) {
   el.innerHTML = '<h3>תצוגה</h3>' +
-    toggleRow('rashi', 'רש״י') + toggleRow('nikud', 'ניקוד') + toggleRow('teamim', 'טעמים') + toggleRow('aliyot', 'סימון עליות') +
+    toggleRow('rashi', 'רש״י') + toggleRow('nikud', 'ניקוד') + toggleRow('teamim', 'טעמים') + toggleRow('aliyot', 'סימון עליות') + toggleRow('prog', 'פס התקדמות') +
     `<div class="row"><label>גודל גופן</label><div class="seg"><button type="button" class="seg-btn" data-fs="-4">−</button><button type="button" class="seg-btn" disabled>${S.fs}</button><button type="button" class="seg-btn" data-fs="4">+</button></div></div>` +
     segRow('wt', 'עובי הכתב', [['0', 'רגיל'], ['1', 'עבה'], ['2', 'עבה יותר'], ['3', 'הכי עבה']]) +
     '<h3>גופן</h3><div class="fonts">' +
@@ -511,7 +556,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.16 · עובד בלי אינטרנט</p>` +
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.17 · עובד בלי אינטרנט</p>` +
     `<p class="hint">מקש אחרון שהתקבל: ${esc(lastKey || '—')}</p>`;
 }
 
@@ -528,8 +573,16 @@ function bind() {
     go({ t: 'c', b: s[0], c: s[1] }, `v-${s.join('-')}`);
   };
   $('main').addEventListener('scroll', () => {
-    if (!trackQueued) { trackQueued = true; requestAnimationFrame(trackChapter); }
+    if (!trackQueued) { trackQueued = true; requestAnimationFrame(() => { trackChapter(); updateProgress(); }); }
   }, { passive: true });
+  window.addEventListener('resize', () => updateProgress());
+  $('progTrack').onclick = e => {
+    // RTL: the bar fills from the right edge
+    const r = e.currentTarget.getBoundingClientRect(), vns = verseList();
+    if (!vns.length) return;
+    const k = Math.max(0, Math.min(vns.length - 1, Math.floor((r.right - e.clientX) / r.width * vns.length)));
+    scrollToVerse(vns[k]);
+  };
   $('pickBtn').onclick = () => {
     if (S.view && S.view.t === 'c') { pickBook = S.view.b; pickChapter = 0; }
     togglePop('pickPop', buildPick);
@@ -586,7 +639,7 @@ function bind() {
 }
 function setFs(d) {
   S.fs = Math.max(16, Math.min(80, S.fs + d));
-  save(); applyLook();
+  save(); applyLook(); updateProgress();
   if (!$('setPop').hidden) buildSet($('setPop'));
 }
 

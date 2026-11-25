@@ -61,6 +61,34 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .seg-btn[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .btn:disabled { opacity: .45; cursor: default; }
 
+/* ---------- reading progress ---------- */
+.prog {
+  display: flex; align-items: center; gap: 14px; padding: 7px 18px 8px;
+  background: var(--surface); border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: .92em;
+}
+.prog-now, .prog-left { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.prog-now b, .prog-left b { color: var(--ink); font-weight: 700; }
+.prog-now .sec { color: var(--accent); font-weight: 600; }
+.prog-track {
+  position: relative; flex: 1; height: 10px; border-radius: 5px; cursor: pointer;
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line);
+}
+.prog-fill {
+  position: absolute; inset-block: 0; inset-inline-start: 0; width: 0; border-radius: inherit;
+  background: var(--accent);
+  background: linear-gradient(to left, var(--accent), color-mix(in srgb, var(--accent) 62%, var(--surface)));
+  transition: width .2s ease;
+}
+.prog-fill::after {
+  content: ""; position: absolute; z-index: 2; inset-inline-end: -7px; top: 50%; width: 14px; height: 14px; margin-top: -7px;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--surface);
+}
+.prog-ticks i {
+  position: absolute; top: -3px; bottom: -3px; width: 3px; margin-inline-start: -1.5px;
+  border-radius: 2px; background: var(--surface);
+}
+.prog.done .prog-fill::after { display: none; }
+
 /* ---------- popovers ---------- */
 .pop {
   position: fixed; z-index: 20; top: 58px; inset-inline-start: 16px; inset-inline-end: 16px;
@@ -171,6 +199,8 @@ details.haft > summary {
 @media (max-width: 640px) {
   .top { padding: 8px 12px; gap: 6px; }
   .top h1 { display: none; }
+  .prog { padding: 6px 12px; gap: 10px; font-size: .82em; }
+  .prog-now .sec { display: none; }
   .text, .sub, .pager { padding-inline: 16px; }
   .pop-set, .pop-about { width: auto; inset-inline-start: 12px; inset-inline-end: 12px; }
 }
