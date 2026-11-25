@@ -291,6 +291,28 @@ function weeklyView() {
   const r = SMCal.weekly(SMCal.fromDate(new Date()), S.il);
   return { t: 'p', ps: r.p, rd: r.rd };
 }
+// PageDown / PageUp: the next / previous verse to the top of the reading area (same 12px gap as scrollToVerse).
+// A verse taller than the screen is paged through first, so no text is skipped.
+// Returns false (browser default) outside the verse list, e.g. past the last verse.
+function pageVerse(dir) {
+  const m = $('main'), box = m.getBoundingClientRect();
+  const ps = [...document.querySelectorAll('.text p.vp')];
+  if (!ps.length) return false;
+  const tops = ps.map(p => p.getBoundingClientRect().top - box.top);
+  if (dir > 0) {
+    const i = tops.findIndex(t => t > 14);
+    if (i < 0) return false;
+    const step = tops[i] - 12;
+    const lh = parseFloat(getComputedStyle(ps[i]).lineHeight) || 60;
+    m.scrollTop += step > m.clientHeight ? m.clientHeight - lh : step;
+    return true;
+  }
+  let i = -1;
+  tops.forEach((t, k) => { if (t < 10) i = k; });
+  if (i < 0) return false;
+  m.scrollTop += tops[i] - 12;
+  return true;
+}
 function scrollToVerse(el) {
   const m = $('main'), box = el.closest('.vp') || el;
   m.scrollTop += box.getBoundingClientRect().top - m.getBoundingClientRect().top - 12;
@@ -441,7 +463,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.13 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.14 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -498,7 +520,12 @@ function bind() {
     else if (d.ga) { closePops(); const el = $('v-' + d.ga); if (el) scrollToVerse(el); }
     if (!t.closest('.pop') && !['pickBtn', 'aliyaBtn', 'setBtn', 'aboutBtn'].includes(t.id)) closePops();
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePops(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closePops();
+    else if ((e.key === 'PageDown' || e.key === 'PageUp') && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+      if (pageVerse(e.key === 'PageDown' ? 1 : -1)) e.preventDefault();
+    }
+  });
 }
 function setFs(d) {
   S.fs = Math.max(16, Math.min(80, S.fs + d));
@@ -515,7 +542,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.13 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.14 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) {
   if (v.pinv !== DEF.pinv) { delete v.bm; v.pinv = DEF.pinv; } // 0.2.6 saved places automatically; start clean
   if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
