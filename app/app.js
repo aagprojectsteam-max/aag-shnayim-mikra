@@ -311,29 +311,37 @@ function weeklyView() {
 }
 // PageDown / PageUp: the next / previous verse to the top of the reading area (same 12px gap as scrollToVerse).
 // A verse taller than the screen is paged through first, so no text is skipped.
-// Returns false (browser default) outside the verse list, e.g. past the last verse.
+// After the parasha the stops continue: the "last verse twice" block, each of the next parasha's three
+// verses, the haftarah heading and (when open) each haftarah verse. With no stop left, a screen at a time.
+const PAGE_STOPS = '.text p.vp, .text .blk, .text .blk .vn-static, .text details.haft > summary, .text details.haft[open] .vn-static';
 let lastKey = '';  // shown in the ℹ popup: tells whether paging keys reach the page at all
 // breathing room above a verse brought to the top (PageDown/PageUp, jumps): about two thirds of a text line
 const topGap = () => Math.max(24, Math.round(S.fs * 1.3));
 function pageVerse(dir) {
   const m = $('main'), box = m.getBoundingClientRect(), g = topGap();
-  const ps = [...document.querySelectorAll('.text p.vp')];
-  if (!ps.length) return false;
-  const tops = ps.map(p => p.getBoundingClientRect().top - box.top);
+  const lh = parseFloat(getComputedStyle($('text')).lineHeight) || 60, page = m.clientHeight - lh;
+  // stops in document order; a stop less than a line below the previous one (a block heading and its first
+  // verse, two haftarah verses starting on the same line) is dropped
+  const tops = [];
+  for (const el of document.querySelectorAll(PAGE_STOPS)) {
+    const t = el.getBoundingClientRect().top - box.top;
+    if (!tops.length || t > tops[tops.length - 1] + Math.max(4, lh * 0.6)) tops.push(t);
+  }
   if (dir > 0) {
     const i = tops.findIndex(t => t > g + 2);
-    if (i < 0) return false;
+    const left = m.scrollHeight - m.clientHeight - m.scrollTop;  // what can still be scrolled
+    if (left < 2) return false;
+    if (i < 0) { m.scrollTop += Math.min(page, left); return true; }
     const step = tops[i] - g;
-    const lh = parseFloat(getComputedStyle(ps[i]).lineHeight) || 60;
-    m.scrollTop += step > m.clientHeight ? m.clientHeight - lh : step;
+    m.scrollTop += step > m.clientHeight ? page : step;
     return true;
   }
+  if (m.scrollTop < 2) return false;
   let i = -1;
   tops.forEach((t, k) => { if (t < g - 2) i = k; });
-  if (i < 0) return false;
-  const back = tops[i] - g;  // negative: distance up to that verse's start
-  const lh = parseFloat(getComputedStyle(ps[i]).lineHeight) || 60;
-  m.scrollTop += -back > m.clientHeight ? -(m.clientHeight - lh) : back;
+  if (i < 0) { m.scrollTop -= page; return true; }
+  const back = tops[i] - g;  // negative: distance up to that stop
+  m.scrollTop += -back > m.clientHeight ? -page : back;
   return true;
 }
 function scrollToVerse(el) {
@@ -556,7 +564,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.17 · עובד בלי אינטרנט</p>` +
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.18 · עובד בלי אינטרנט</p>` +
     `<p class="hint">מקש אחרון שהתקבל: ${esc(lastKey || '—')}</p>`;
 }
 
