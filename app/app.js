@@ -280,6 +280,9 @@ function applyLook() {
   r.setProperty('--fs', S.fs + 'px');
   if (S.ff && fontFits(S.ff)) r.setProperty('--font-text', `"${S.ff}", "Frank Ruehl CLM", "Noto Serif Hebrew", serif`);
   else r.removeProperty('--font-text');
+  // Old Guttman fonts: their GPOS mark positioning makes Otzaria's WPE WebKit paint a whole
+  // run ~0.45em too high (layout boxes stay aligned). Measured fixed with "mark" off.
+  r.setProperty('--ffs', /^Guttman/i.test(S.ff || '') && fontFits(S.ff) ? '"mark" 0' : 'normal');
   r.setProperty('--wt', ['0', '.012em', '.024em', '.036em'][+S.wt] || '0');
   r.setProperty('--c1', `var(--k-${S.c1})`);
   r.setProperty('--c2', `var(--k-${S.c2})`);
@@ -294,6 +297,7 @@ function weeklyView() {
 // PageDown / PageUp: the next / previous verse to the top of the reading area (same 12px gap as scrollToVerse).
 // A verse taller than the screen is paged through first, so no text is skipped.
 // Returns false (browser default) outside the verse list, e.g. past the last verse.
+let lastKey = '';  // shown in the ℹ popup: tells whether paging keys reach the page at all
 function pageVerse(dir) {
   const m = $('main'), box = m.getBoundingClientRect();
   const ps = [...document.querySelectorAll('.text p.vp')];
@@ -310,7 +314,9 @@ function pageVerse(dir) {
   let i = -1;
   tops.forEach((t, k) => { if (t < 10) i = k; });
   if (i < 0) return false;
-  m.scrollTop += tops[i] - 12;
+  const back = tops[i] - 12;  // negative: distance up to that verse's start
+  const lh = parseFloat(getComputedStyle(ps[i]).lineHeight) || 60;
+  m.scrollTop += -back > m.clientHeight ? -(m.clientHeight - lh) : back;
   return true;
 }
 function scrollToVerse(el) {
@@ -387,8 +393,8 @@ function togglePop(id, build) {
 function buildAliya(el) {
   let h = '';
   for (const pi of S.view.ps) {
-    h += `<h3>פרשת ${esc(M.parashot[pi].he)}</h3><div class="grid">`;
-    M.parashot[pi].aliyot.forEach((a, i) => { h += `<button type="button" class="chip" data-ga="${a[0]}-${a[1]}-${a[2]}">${ALIYOT[i]}</button>`; });
+    h += `<h3>פרשת ${esc(M.parashot[pi].he)}</h3><div class="alist">`;
+    M.parashot[pi].aliyot.forEach((a, i) => { h += `<button type="button" class="chip" data-ga="${a[0]}-${a[1]}-${a[2]}"><b>${ALIYOT[i]}</b><span>${esc(refLabel(a))}</span></button>`; });
     h += '</div>';
   }
   el.innerHTML = h;
@@ -463,7 +469,8 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.14 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.15 · עובד בלי אינטרנט</p>` +
+    `<p class="hint">מקש אחרון שהתקבל: ${esc(lastKey || '—')}</p>`;
 }
 
 /* ---------- events ---------- */
@@ -500,6 +507,8 @@ function bind() {
       return;
     }
     const d = t.dataset;
+    // decided BEFORE handling: rebuilding a popup detaches t, and a detached button is "outside" every popup
+    const inPop = !!t.closest('.pop');
     if (d.go) {
       const [k, a, c] = d.go.split(':');
       if (k === 'p') go({ t: 'p', ps: a.split(',').map(Number) });
@@ -518,14 +527,18 @@ function bind() {
     else if (d.ff !== undefined) { S.ff = +d.ff ? usableFonts()[+d.ff - 1] : ''; save(); buildSet($('setPop')); applyLook(); }
     else if (d.haf) { hafChoice = d.haf; render(); }
     else if (d.ga) { closePops(); const el = $('v-' + d.ga); if (el) scrollToVerse(el); }
-    if (!t.closest('.pop') && !['pickBtn', 'aliyaBtn', 'setBtn', 'aboutBtn'].includes(t.id)) closePops();
+    if (!inPop && !['pickBtn', 'aliyaBtn', 'setBtn', 'aboutBtn'].includes(t.id)) closePops();
   });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closePops();
-    else if ((e.key === 'PageDown' || e.key === 'PageUp') && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
-      if (pageVerse(e.key === 'PageDown' ? 1 : -1)) e.preventDefault();
-    }
-  });
+  // Capture phase on window, and every spelling of the paging keys: the Otzaria host forwards
+  // synthesized key events whose key/code/keyCode may not all be set.
+  window.addEventListener('keydown', e => {
+    lastKey = [e.key, e.code, e.keyCode].join(' / ');
+    if (e.key === 'Escape') { closePops(); return; }
+    if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+    const dir = ['PageDown', 'Next'].includes(e.key) || e.code === 'PageDown' || e.keyCode === 34 ? 1
+      : ['PageUp', 'Prior'].includes(e.key) || e.code === 'PageUp' || e.keyCode === 33 ? -1 : 0;
+    if (dir && pageVerse(dir)) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
 }
 function setFs(d) {
   S.fs = Math.max(16, Math.min(80, S.fs + d));
@@ -542,7 +555,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.14 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.15 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) {
   if (v.pinv !== DEF.pinv) { delete v.bm; v.pinv = DEF.pinv; } // 0.2.6 saved places automatically; start clean
   if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }

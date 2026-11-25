@@ -70,7 +70,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .pop-set { inset-inline-start: auto; width: 460px; }
 .pop-set .row label { white-space: nowrap; }
-.pop-aliya { inset-inline-end: auto; width: 360px; }
+.pop-aliya { inset-inline-end: auto; width: 320px; }
+.alist { display: flex; flex-direction: column; gap: 4px; }
+.alist .chip { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: start; padding: 8px 14px; }
+.alist .chip span { color: var(--ink-2); font-size: .9em; }
+.alist .chip:hover span { color: inherit; }
 .pop-about { inset-inline-start: auto; width: 440px; line-height: 1.6; }
 .pop h3 { margin: 10px 0 6px; font-size: .95em; color: var(--ink-2); font-weight: 600; }
 .pop h3:first-child { margin-top: 0; }
@@ -108,6 +112,7 @@ main { flex: 1; overflow: auto; outline: none; }
 .text {
   margin: 0; padding-block: 6px 24px; padding-inline: 6px 44px;
   font: var(--fs)/1.95 var(--font-text); text-align: justify;
+  font-feature-settings: var(--ffs, normal);
   -webkit-text-stroke: var(--wt, 0) currentColor;
 }
 .text p { margin: 0 0 .9em; }
