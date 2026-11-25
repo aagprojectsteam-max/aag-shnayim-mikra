@@ -315,7 +315,13 @@ function topVerse() {
   const top = $('main').getBoundingClientRect().top;
   // only real verse paragraphs (the end block / haftarah have static numbers without a reference)
   const vns = [...document.querySelectorAll('.text p.vp .vn[data-r]')];
-  const vn = vns.find(x => x.closest('.vp').getBoundingClientRect().bottom > top + 10) || vns[vns.length - 1];
+  // a verse counts only if at least half a line of its TEXT is on screen (not just its bottom padding / separator line)
+  const seen = p => {
+    const cs = getComputedStyle(p);
+    const textBottom = p.getBoundingClientRect().bottom - parseFloat(cs.paddingBottom) - parseFloat(cs.borderBottomWidth);
+    return textBottom > top + parseFloat(cs.lineHeight) / 2;
+  };
+  const vn = vns.find(x => seen(x.closest('.vp'))) || vns[vns.length - 1];
   return vn ? vn.dataset.r.split(':').map(Number) : null;
 }
 function updatePinUI() {
@@ -435,7 +441,7 @@ function buildAbout(el) {
   el.innerHTML = '<h3>שניים מקרא ואחד תרגום</h3>' +
     '<p>כל פסוק פעמיים (בשני צבעים) ואחריו תרגום אונקלוס — כל פסוק בפסקה משלו. בסוף הפרשה: הפסוק האחרון פעמיים, ושלושה פסוקים ראשונים מהפרשה הבאה (אחרי וזאת הברכה — בראשית).</p>' +
     '<p>פרשת השבוע מחושבת לפי לוח עברי מקומי (ארץ ישראל או חוץ לארץ), כולל פרשות מחוברות ושבתות מיוחדות להפטרה.</p>' +
-    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.12 · עובד בלי אינטרנט</p>`;
+    `<p class="hint">מקורות: ${esc(M.source)}</p><p class="hint">AAG · גרסה 0.2.13 · עובד בלי אינטרנט</p>`;
 }
 
 /* ---------- events ---------- */
@@ -509,7 +515,7 @@ function save() {
     if (HAS_OTZ) Otzaria.call('storage.set', { key: KEY, value: S }).catch(() => {});
   }, 250);
 }
-// stored state from before 0.2.12 (no fsv): drop its small font size so the new larger default applies
+// stored state from before 0.2.13 (no fsv): drop its small font size so the new larger default applies
 function migrate(v) {
   if (v.pinv !== DEF.pinv) { delete v.bm; v.pinv = DEF.pinv; } // 0.2.6 saved places automatically; start clean
   if (v.fsv !== DEF.fsv) { delete v.fs; v.fsv = DEF.fsv; } return v; }
